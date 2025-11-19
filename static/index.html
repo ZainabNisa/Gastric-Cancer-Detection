@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gastric Cancer Detection | AI-Powered Diagnosis with Grad-CAM</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tab-active {
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
+        .image-comparison {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+        }
+        .comparison-slider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: white;
+            cursor: ew-resize;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="gradient-bg text-white p-2 rounded-lg">
+                        <i class="fas fa-microscope text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900">Gastric Cancer Detection</h1>
+                        <p class="text-xs text-gray-500">AI with Grad-CAM Visualization & Stain Normalization</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="statusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">
+                        <i class="fas fa-circle-notch fa-spin"></i> Checking...
+                    </span>
+                    <button onclick="showInfo()" class="text-gray-600 hover:text-gray-900">
+                        <i class="fas fa-info-circle text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Alert Messages -->
+        <div id="alertContainer" class="mb-6"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left Column - Upload & Analysis -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Upload Card -->
+                <div class="bg-white rounded-2xl card-shadow p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">
+                            <i class="fas fa-upload text-blue-600 mr-2"></i>
+                            Upload Histopathology Image
+                        </h2>
+                        <button onclick="resetUpload()" class="text-sm text-gray-600 hover:text-gray-900">
+                            <i class="fas fa-redo mr-1"></i> Reset
+                        </button>
+                    </div>
+                    
+                    <!-- Info Banner -->
+                    <div class="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                        <div class="flex items-start">
+                            <i class="fas fa-info-circle text-blue-600 text-lg mt-0.5 mr-3"></i>
+                            <div class="text-sm text-blue-800">
+                                <p class="font-semibold mb-1">Image Requirements:</p>
+                                <ul class="list-disc list-inside space-y-1 text-xs">
+                                    <li>Must be H&E stained histopathology image</li>
+                                    <li>Automatic resize to 120x120px</li>
+                                    <li>Reinhard stain normalization applied</li>
+                                    <li>Non-histology images will be rejected</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Area -->
+                    <div id="uploadArea" class="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-blue-500 transition-all cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <input type="file" id="imageInput" accept="image/*" class="hidden">
+                        <div id="uploadPrompt">
+                            <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+                            <h3 class="text-xl font-semibold text-gray-700 mb-2">Drop histopathology image here or click to upload</h3>
+                            <p class="text-sm text-gray-500">PNG, JPG, JPEG, TIFF, BMP up to 10MB</p>
+                            <p class="text-xs text-gray-400 mt-2">Will be automatically resized and normalized</p>
+                        </div>
+                    </div>
+
+                    <!-- File Info -->
+                    <div id="fileInfo" class="hidden mt-4 p-4 bg-blue-50 rounded-lg">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-file-image text-blue-600 text-2xl"></i>
+                                <div>
+                                    <p id="fileName" class="font-semibold text-gray-900"></p>
+                                    <p id="fileSize" class="text-sm text-gray-600"></p>
+                                </div>
+                            </div>
+                            <button onclick="resetUpload()" class="text-red-600 hover:text-red-700">
+                                <i class="fas fa-times-circle text-xl"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="hidden bg-white rounded-2xl card-shadow p-8 fade-in">
+                    
+                    <!-- Loading State -->
+                    <div id="loadingState" class="flex flex-col items-center justify-center py-12 space-y-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-gray-600 font-medium">Analyzing image...</p>
+                        <div class="text-center text-sm text-gray-500 space-y-1">
+                            <p><i class="fas fa-check text-green-600 mr-1"></i> Validating histopathology image</p>
+                            <p><i class="fas fa-check text-green-600 mr-1"></i> Applying Reinhard stain normalization</p>
+                            <p><i class="fas fa-check text-green-600 mr-1"></i> Running CNN prediction</p>
+                            <p><i class="fas fa-check text-green-600 mr-1"></i> Generating Grad-CAM heatmap</p>
+                        </div>
+                    </div>
+
+                    <!-- Results State -->
+                    <div id="resultsState" class="hidden space-y-6">
+                        
+                        <!-- Prediction Summary -->
+                        <div id="predictionBadge" class="p-6 rounded-lg border-2">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center space-x-3">
+                                    <i id="predictionIcon" class="text-4xl"></i>
+                                    <div>
+                                        <span id="predictionText" class="text-3xl font-bold block"></span>
+                                        <span class="text-sm text-gray-600">Confidence: <span id="confidenceText" class="font-bold text-lg"></span></span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-gray-500 mb-1">Processing Info</p>
+                                    <p class="text-xs" id="stainNormStatus"><i class="fas fa-check text-green-600 mr-1"></i> <span id="stainNormText">Stain Normalized</span></p>
+                                    <p class="text-xs"><i class="fas fa-check text-green-600 mr-1"></i> Validated</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Probability Bars -->
+                            <div class="space-y-3 mt-4">
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span class="font-medium text-gray-700">Normal Tissue</span>
+                                        <span id="normalProb" class="text-gray-600"></span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div id="normalBar" class="bg-green-500 h-3 rounded-full transition-all duration-500"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span class="font-medium text-gray-700">Abnormal Tissue</span>
+                                        <span id="abnormalProb" class="text-gray-600"></span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div id="abnormalBar" class="bg-red-500 h-3 rounded-full transition-all duration-500"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visualization Tabs -->
+                        <div>
+                            <div class="border-b border-gray-200 mb-4">
+                                <div class="flex space-x-6">
+                                    <button onclick="switchTab('original')" id="tabOriginal" class="py-2 text-sm tab-active">
+                                        <i class="fas fa-image mr-1"></i> Original
+                                    </button>
+                                    <button onclick="switchTab('gradcam')" id="tabGradcam" class="py-2 text-sm text-gray-600 hover:text-gray-900">
+                                        <i class="fas fa-fire mr-1"></i> Grad-CAM
+                                    </button>
+                                    <button onclick="switchTab('comparison')" id="tabComparison" class="py-2 text-sm text-gray-600 hover:text-gray-900">
+                                        <i class="fas fa-columns mr-1"></i> Comparison
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Tab Contents -->
+                            <div id="tabContentOriginal" class="tab-content">
+                                <div class="relative rounded-lg overflow-hidden border-2 border-gray-200">
+                                    <img id="previewImage" src="" alt="Original" class="w-full h-96 object-contain bg-gray-100">
+                                    <div class="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                                        Original Image
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="tabContentGradcam" class="tab-content hidden">
+                                <div id="gradcamContainer" class="space-y-3">
+                                    <div class="relative rounded-lg overflow-hidden border-2 border-gray-200">
+                                        <img id="gradcamImage" src="" alt="Grad-CAM" class="w-full h-96 object-contain bg-gray-100">
+                                        <div class="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                                            Grad-CAM Heatmap
+                                        </div>
+                                    </div>
+                                    <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                        <p class="text-sm text-purple-800">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            <strong>Grad-CAM Explanation:</strong> Red/yellow regions indicate areas the AI model focused on to make its prediction. Higher intensity shows stronger influence on the decision.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div id="gradcamUnavailable" class="hidden p-8 bg-gray-100 rounded-lg text-center">
+                                    <i class="fas fa-exclamation-triangle text-gray-400 text-4xl mb-3"></i>
+                                    <p class="text-gray-600">Grad-CAM visualization unavailable</p>
+                                    <p id="gradcamErrorMsg" class="text-sm text-gray-500 mt-2"></p>
+                                </div>
+                            </div>
+
+                            <div id="tabContentComparison" class="tab-content hidden">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-700 mb-2">Original Image</p>
+                                        <div class="relative rounded-lg overflow-hidden border-2 border-gray-200">
+                                            <img id="comparisonOriginal" src="" alt="Original" class="w-full h-80 object-contain bg-gray-100">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-700 mb-2">AI Focus Areas (Grad-CAM)</p>
+                                        <div class="relative rounded-lg overflow-hidden border-2 border-gray-200">
+                                            <img id="comparisonGradcam" src="" alt="Grad-CAM" class="w-full h-80 object-contain bg-gray-100">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="pt-4 flex space-x-3">
+                            <button onclick="resetUpload()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-redo mr-2"></i>
+                                New Analysis
+                            </button>
+                            <button onclick="exportReport()" class="flex-1 gradient-bg text-white font-semibold py-3 px-4 rounded-lg hover:opacity-90 transition-opacity">
+                                <i class="fas fa-download mr-2"></i>
+                                Export Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column - Info & Stats -->
+            <div class="space-y-6">
+                
+                <!-- Model Performance -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">
+                        <i class="fas fa-chart-line text-blue-600 mr-2"></i>
+                        Model Performance
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Overall Accuracy</span>
+                            <span class="font-bold text-blue-600">86.87%</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Specificity</span>
+                            <span class="font-bold text-green-600">93.75%</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Sensitivity</span>
+                            <span class="font-bold text-orange-600">80.39%</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">AUC-ROC</span>
+                            <span class="font-bold text-purple-600">0.9464</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Features -->
+                <div class="gradient-bg rounded-2xl card-shadow p-6 text-white">
+                    <h3 class="text-lg font-bold mb-4">
+                        <i class="fas fa-star mr-2"></i>
+                        Advanced Features
+                    </h3>
+                    <ul class="space-y-3 text-sm">
+                        <li class="flex items-start">
+                            <i class="fas fa-check-circle mr-2 mt-0.5"></i>
+                            <span><strong>Grad-CAM:</strong> Visual explanation of AI decisions</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fas fa-check-circle mr-2 mt-0.5"></i>
+                            <span><strong>Stain Normalization:</strong> Reinhard method for consistency</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fas fa-check-circle mr-2 mt-0.5"></i>
+                            <span><strong>Auto Resize:</strong> Handles any input resolution</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fas fa-check-circle mr-2 mt-0.5"></i>
+                            <span><strong>Image Validation:</strong> Rejects non-histology images</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- System Info -->
+                <div class="bg-white rounded-2xl card-shadow p-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">
+                        <i class="fas fa-server text-blue-600 mr-2"></i>
+                        System Status
+                    </h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">API URL</span>
+                            <span id="apiUrl" class="text-gray-900 text-xs">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">API Status</span>
+                            <span id="apiStatus" class="text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Model Version</span>
+                            <span id="modelVersion" class="text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Grad-CAM</span>
+                            <span id="gradcamStatus" class="text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Stain Norm</span>
+                            <span id="stainNormConfig" class="text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Total Analyses</span>
+                            <span id="totalAnalyses" class="text-gray-900">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Disclaimer -->
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-4">
+                    <p class="text-xs text-yellow-800">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        <strong>Medical Disclaimer:</strong> This AI tool assists medical professionals. All results must be verified by a qualified pathologist. Not for clinical diagnosis.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="text-center text-sm text-gray-600">
+                <p>&copy; 2024 Gastric Cancer Detection System | For Research & Educational Purposes</p>
+                <p class="mt-1">Enhanced with Grad-CAM Visualization & Reinhard Stain Normalization</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // ============================================================================
+        // CONFIGURATION - SMART API URL DETECTION
+        // ============================================================================
+        
+        // Try to detect the correct API URL
+        function getApiBaseUrl() {
+            // If opened as file://, use default Flask server
+            if (window.location.protocol === 'file:') {
+                console.log('🔧 Detected file:// protocol, using http://localhost:5000');
+                return 'http://localhost:5000';
+            }
+            
+            // If served from a server, check if it's the Flask server
+            const origin = window.location.origin;
+            
+            // Common development scenarios
+            if (origin.includes(':3000') || origin.includes(':8000')) {
+                // Likely a separate dev server, Flask probably on 5000
+                console.log('🔧 Detected dev server, trying http://localhost:5000');
+                return 'http://localhost:5000';
+            }
+            
+            // Otherwise use same origin (Flask serving the HTML)
+            console.log('🔧 Using same origin:', origin);
+            return origin;
+        }
+        
+        const API_BASE_URL = getApiBaseUrl();
+        
+        // State
+        let analysisCount = 0;
+        let currentFile = null;
+        let currentResults = null;
+        let currentTab = 'original';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Application initialized');
+            console.log('📡 API Base URL:', API_BASE_URL);
+            document.getElementById('apiUrl').textContent = API_BASE_URL;
+            checkHealth();
+            setupEventListeners();
+        });
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            const uploadArea = document.getElementById('uploadArea');
+            const imageInput = document.getElementById('imageInput');
+
+            uploadArea.addEventListener('click', () => imageInput.click());
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('border-blue-500', 'bg-blue-50');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+                const file = e.dataTransfer.files[0];
+                if (file) handleFileSelect(file);
+            });
+
+            imageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFileSelect(file);
+            });
+        }
+
+        // Check API Health
+        async function checkHealth() {
+            console.log('🏥 Checking API health...');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/health`);
+                const data = await response.json();
+                
+                console.log('✅ Health check response:', data);
+                
+                if (data.model_loaded) {
+                    updateStatusBadge('online');
+                    document.getElementById('apiStatus').textContent = 'Online ✓';
+                    
+                    // Get model info
+                    const infoResponse = await fetch(`${API_BASE_URL}/api/model-info`);
+                    const infoData = await infoResponse.json();
+                    
+                    console.log('📊 Model info:', infoData);
+                    
+                    if (infoData.success) {
+                        document.getElementById('modelVersion').textContent = infoData.data.version;
+                        document.getElementById('gradcamStatus').textContent = 
+                            infoData.data.grad_cam_available ? 'Available ✓' : 'Unavailable ✗';
+                        document.getElementById('stainNormConfig').textContent = 
+                            infoData.data.stain_normalization_enabled ? 'Enabled ✓' : 'Disabled ✗';
+                    }
+                } else {
+                    updateStatusBadge('error');
+                    showAlert('Model not loaded. Please contact administrator.', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Health check failed:', error);
+                updateStatusBadge('error');
+                showAlert(`Cannot connect to API server at ${API_BASE_URL}. Is Flask running?`, 'error');
+            }
+        }
+
+        // Handle File Selection
+        function handleFileSelect(file) {
+            console.log('📁 File selected:', file.name, file.type, file.size, 'bytes');
+            
+            if (!file.type.startsWith('image/')) {
+                showAlert('Please select a valid image file.', 'error');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                showAlert('File size must be less than 10MB.', 'error');
+                return;
+            }
+
+            currentFile = file;
+
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = `${(file.size / 1024).toFixed(2)} KB`;
+            document.getElementById('fileInfo').classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('previewImage').src = e.target.result;
+                analyzeImage(file);
+            };
+            reader.readAsDataURL(file);
+
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('resultsState').classList.add('hidden');
+        }
+
+        // Analyze Image
+        async function analyzeImage(file) {
+            console.log('🔬 Starting analysis...');
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('gradcam', 'true');
+                // Don't override stain_normalize - let backend use its config
+
+                console.log('📤 Sending POST request to:', `${API_BASE_URL}/api/predict`);
+                
+                const response = await fetch(`${API_BASE_URL}/api/predict`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                console.log('📥 Response status:', response.status, response.statusText);
+                
+                const result = await response.json();
+                console.log('📊 Full response:', result);
+
+                if (result.success) {
+                    currentResults = result.data;
+                    console.log('✅ Analysis successful!');
+                    console.log('   Prediction:', result.data.prediction);
+                    console.log('   Confidence:', result.data.confidence + '%');
+                    console.log('   Grad-CAM available:', result.data.gradcam_available);
+                    console.log('   Stain normalized:', result.data.preprocessing?.stain_normalized);
+                    if (result.data.gradcam) {
+                        console.log('   Grad-CAM data length:', result.data.gradcam.length);
+                    }
+                    if (result.data.gradcam_error) {
+                        console.log('   Grad-CAM error:', result.data.gradcam_error);
+                    }
+                    displayResults(result.data);
+                    analysisCount++;
+                    document.getElementById('totalAnalyses').textContent = analysisCount;
+                } else {
+                    throw new Error(result.error || 'Prediction failed');
+                }
+
+            } catch (error) {
+                console.error('❌ Analysis error:', error);
+                showAlert(`Analysis failed: ${error.message}`, 'error');
+                document.getElementById('resultsSection').classList.add('hidden');
+            }
+        }
+
+        // Display Results
+        function displayResults(data) {
+            console.log('🎨 Displaying results...');
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('resultsState').classList.remove('hidden');
+
+            const isNormal = data.prediction === 'Normal';
+            const badge = document.getElementById('predictionBadge');
+            const icon = document.getElementById('predictionIcon');
+            const text = document.getElementById('predictionText');
+            
+            if (isNormal) {
+                badge.className = 'p-6 rounded-lg border-2 bg-green-50 border-green-200';
+                icon.className = 'fas fa-check-circle text-green-600 text-4xl';
+                text.className = 'text-3xl font-bold text-green-800 block';
+            } else {
+                badge.className = 'p-6 rounded-lg border-2 bg-red-50 border-red-200';
+                icon.className = 'fas fa-exclamation-circle text-red-600 text-4xl';
+                text.className = 'text-3xl font-bold text-red-800 block';
+            }
+            
+            text.textContent = data.prediction;
+            document.getElementById('confidenceText').textContent = `${data.confidence}%`;
+
+            document.getElementById('normalProb').textContent = `${data.probabilities.normal}%`;
+            document.getElementById('abnormalProb').textContent = `${data.probabilities.abnormal}%`;
+            document.getElementById('normalBar').style.width = `${data.probabilities.normal}%`;
+            document.getElementById('abnormalBar').style.width = `${data.probabilities.abnormal}%`;
+
+            // Update stain normalization status
+            if (data.preprocessing && data.preprocessing.stain_normalized !== undefined) {
+                const stainNormText = document.getElementById('stainNormText');
+                if (data.preprocessing.stain_normalized) {
+                    stainNormText.textContent = 'Stain Normalized ✓';
+                } else {
+                    stainNormText.textContent = 'Original (No Normalization)';
+                }
+            }
+
+            // Setup Grad-CAM
+            console.log('🔥 Setting up Grad-CAM display...');
+            console.log('   gradcam_available:', data.gradcam_available);
+            console.log('   has gradcam data:', !!data.gradcam);
+            
+            if (data.gradcam_available && data.gradcam) {
+                console.log('✅ Displaying Grad-CAM');
+                document.getElementById('gradcamImage').src = data.gradcam;
+                document.getElementById('comparisonGradcam').src = data.gradcam;
+                document.getElementById('comparisonOriginal').src = document.getElementById('previewImage').src;
+                document.getElementById('gradcamContainer').classList.remove('hidden');
+                document.getElementById('gradcamUnavailable').classList.add('hidden');
+            } else {
+                console.log('❌ Grad-CAM unavailable');
+                if (data.gradcam_error) {
+                    console.log('   Error:', data.gradcam_error);
+                    document.getElementById('gradcamErrorMsg').textContent = `Error: ${data.gradcam_error}`;
+                }
+                document.getElementById('gradcamContainer').classList.add('hidden');
+                document.getElementById('gradcamUnavailable').classList.remove('hidden');
+            }
+
+            showAlert(`Analysis complete: ${data.prediction} (${data.confidence}% confidence)`, 'success');
+        }
+
+        // Switch Tabs
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Update tab buttons
+            document.querySelectorAll('[id^="tab"]').forEach(el => {
+                if (el.id.includes('Content')) return;
+                el.className = 'py-2 text-sm text-gray-600 hover:text-gray-900';
+            });
+            document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).className = 'py-2 text-sm tab-active';
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tabContent${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+        }
+
+        // Reset Upload
+        function resetUpload() {
+            currentFile = null;
+            currentResults = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('fileInfo').classList.add('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            switchTab('original');
+        }
+
+        // Export Report
+        function exportReport() {
+            if (!currentFile || !currentResults) return;
+
+            const stainNormStatus = currentResults.preprocessing?.stain_normalized ? 
+                'Yes (Reinhard method)' : 'No (Original image used)';
+
+            const report = `
+GASTRIC CANCER DETECTION REPORT
+================================
+Date: ${new Date().toLocaleString()}
+Filename: ${currentFile.name}
+
+PREDICTION RESULTS
+------------------
+Prediction: ${currentResults.prediction}
+Confidence: ${currentResults.confidence}%
+
+PROBABILITIES
+-------------
+Normal: ${currentResults.probabilities.normal}%
+Abnormal: ${currentResults.probabilities.abnormal}%
+
+TECHNICAL DETAILS
+-----------------
+Raw Score: ${currentResults.raw_score.toFixed(4)}
+Threshold: ${currentResults.threshold}
+Stain Normalized: ${stainNormStatus}
+Image Validated: Yes
+Grad-CAM Generated: ${currentResults.gradcam_available ? 'Yes' : 'No'}
+
+MODEL INFORMATION
+-----------------
+Model: Gastric Cancer Detection CNN v1.0.0
+Accuracy: 86.87%
+Specificity: 93.75%
+Sensitivity: 80.39%
+AUC-ROC: 0.9464
+
+PREPROCESSING APPLIED
+---------------------
+- Stain normalization: ${stainNormStatus}
+- Automatic resize to 120x120px
+- Histopathology validation passed
+- RGB color space conversion
+
+DISCLAIMER
+----------
+This AI model is designed to assist medical professionals.
+All results should be verified by a qualified pathologist.
+Not for clinical diagnosis without professional review.
+            `.trim();
+
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gastric_report_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showAlert('Report exported successfully!', 'success');
+        }
+
+        // Show Info Modal
+        function showInfo() {
+            const info = `
+╔════════════════════════════════════════════════════════════╗
+║     GASTRIC CANCER DETECTION SYSTEM - ENHANCED             ║
+╚════════════════════════════════════════════════════════════╝
+
+MODEL INFORMATION:
+━━━━━━━━━━━━━━━━━━
+• Type: Custom CNN with Batch Normalization
+• Architecture: 4 Conv blocks + GAP + 2 Dense layers
+• Total Parameters: 1,468,613 (1.87M trainable)
+• Input Size: 120x120x3 RGB
+• Output: Binary classification (Normal/Abnormal)
+
+PERFORMANCE METRICS:
+━━━━━━━━━━━━━━━━━━━━
+• Overall Accuracy: 86.87%
+• Specificity: 93.75%
+• Sensitivity: 80.39%
+• AUC-ROC: 0.9464
+• Optimal Threshold: 0.4
+
+ADVANCED FEATURES:
+━━━━━━━━━━━━━━━━━━
+✓ Grad-CAM Visualization
+  - Shows which regions influenced the AI's decision
+  - Red/yellow = high attention areas
+  - Helps medical professionals understand AI reasoning
+
+✓ Reinhard Stain Normalization (Optional)
+  - Standardizes H&E staining variations
+  - Improves model consistency across different labs
+  - Based on LAB color space transformation
+
+✓ Automatic Preprocessing
+  - Any input resolution automatically resized to 120x120
+  - RGB conversion for grayscale/other formats
+  - No manual preparation needed
+
+✓ Intelligent Image Validation
+  - Checks for histopathology characteristics
+  - Rejects blank, uniform, or non-medical images
+
+HOW IT WORKS:
+━━━━━━━━━━━━━
+1. Upload → Image validated for histopathology features
+2. Preprocess → Optional normalization + resize to 120x120
+3. CNN Analysis → Deep learning model processes image
+4. Grad-CAM → Generates attention heatmap
+5. Results → Prediction + confidence + visualization
+
+DISCLAIMER:
+━━━━━━━━━━━
+⚠️ This AI system is a decision support tool only.
+⚠️ All results require verification by qualified pathologists.
+⚠️ Not FDA-approved for clinical diagnostic use.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+For questions or support, contact your system administrator.
+            `;
+            alert(info);
+        }
+
+        // Update Status Badge
+        function updateStatusBadge(status) {
+            const badge = document.getElementById('statusBadge');
+            if (status === 'online') {
+                badge.innerHTML = '<i class="fas fa-check-circle"></i> Online';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800';
+            } else if (status === 'error') {
+                badge.innerHTML = '<i class="fas fa-times-circle"></i> Offline';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800';
+            }
+        }
+
+        // Show Alert
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-green-50 border-green-200 text-green-800',
+                error: 'bg-red-50 border-red-200 text-red-800',
+                info: 'bg-blue-50 border-blue-200 text-blue-800',
+                warning: 'bg-yellow-50 border-yellow-200 text-yellow-800'
+            };
+
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                info: 'fa-info-circle',
+                warning: 'fa-exclamation-triangle'
+            };
+
+            alertDiv.className = `${colors[type]} border-2 rounded-lg p-4 mb-4 flex items-center justify-between fade-in`;
+            alertDiv.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas ${icons[type]} text-xl mr-3"></i>
+                    <span>${message}</span>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-xl hover:opacity-75">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            container.appendChild(alertDiv);
+
+            setTimeout(() => alertDiv.remove(), 5000);
+        }
+    </script>
+
+</body>
+</html>
