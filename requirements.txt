@@ -12,7 +12,7 @@ numpy==1.26.2
 pillow==10.1.0
 
 # Environment Management
-python-dotenv==1.0.
+python-dotenv==1.0.0
 opencv-python==4.8.1.78
 
 # Optional: Production Server (Uncomment for production)
