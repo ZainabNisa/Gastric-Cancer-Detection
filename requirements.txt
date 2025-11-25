@@ -1,34 +1,17 @@
 flask==3.0.0
 werkzeug==3.0.1
-
-# CORS Support
 flask-cors==4.0.0
 
 # Machine Learning
-tensorflow
+tensorflow==2.20.0
 numpy==1.26.2
 
 # Image Processing
 pillow==10.1.0
+opencv-python-headless==4.8.1.78
 
 # Environment Management
 python-dotenv==1.0.0
-opencv-python==4.8.1.78
 
-# Optional: Production Server (Uncomment for production)
-# gunicorn==21.2.0
-
-# Optional: Rate Limiting (Uncomment if needed)
-# flask-limiter==3.5.0
-
-# Optional: Monitoring (Uncomment if needed)
-# sentry-sdk[flask]==1.40.0
-
-# Optional: Database (Uncomment if using database)
-# flask-sqlalchemy==3.1.1
-# psycopg2-binary==2.9.9  # For PostgreSQL
-
-# Optional: Testing (Uncomment for development)
-# pytest==7.4.3
-# pytest-cov==4.1.0
-# requests==2.31.0
+# Production Server
+gunicorn==21.2.0
