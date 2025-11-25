@@ -5,7 +5,7 @@ werkzeug==3.0.1
 flask-cors==4.0.0
 
 # Machine Learning
-tensorflow==2.19.0
+tensorflow
 numpy==1.26.2
 
 # Image Processing
