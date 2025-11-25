@@ -1,4 +1,11 @@
+
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+# Limit TensorFlow memory
+import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')  # Disable GPU search
 import io
 import logging
 import sys
@@ -8,7 +15,7 @@ from functools import wraps
 from typing import Dict, Any, Tuple, Optional
 
 import numpy as np
-import tensorflow as tf
+
 from PIL import Image
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
