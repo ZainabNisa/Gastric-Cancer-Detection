@@ -496,14 +496,28 @@ def initialize_app():
     logger.info("Endpoints: /, /api/health, /api/model-info, /api/predict")
     logger.info("=" * 70)
     return True
+# ============================================================================
+# INITIALIZE MODEL ON STARTUP (for Gunicorn)
+# ============================================================================
+
+# This runs when the module is imported by Gunicorn
+if not model_manager.is_loaded:
+    logger.info("Initializing application for production deployment...")
+    if not initialize_app():
+        logger.critical("⚠️ Model initialization failed - API will return 503 errors")
+
+# ============================================================================
+# DEVELOPMENT SERVER
+# ============================================================================
 
 if __name__ == '__main__':
-    if initialize_app():
-        host = os.getenv('HOST', '0.0.0.0')
-        port = int(os.getenv('PORT', 5000))
-        logger.info(f"\n🚀 Server: http://{host}:{port}\n")
-        app.run(host=host, port=port, debug=Config.DEBUG, threaded=True)
-    else:
-        logger.error("Initialization failed")
-        exit(1)
+    if not model_manager.is_loaded:
+        if not initialize_app():
+            logger.error("Initialization failed")
+            exit(1)
+    
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    logger.info(f"\n🚀 Server: http://{host}:{port}\n")
+    app.run(host=host, port=port, debug=Config.DEBUG, threaded=True)
         
